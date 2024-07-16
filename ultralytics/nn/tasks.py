@@ -53,6 +53,7 @@ from ultralytics.nn.modules import (
     RTDETRDecoder,
     SCDown,
     Segment,
+    SSL,
     WorldDetect,
     v10Detect,
 )
@@ -380,6 +381,22 @@ class DetectionModel(BaseModel):
     def init_criterion(self):
         """Initialize the loss criterion for the DetectionModel."""
         return E2EDetectLoss(self) if getattr(self, "end2end", False) else v8DetectionLoss(self)
+
+    def update_backbone(self, path):
+        print(f"update_backbone {path}")
+        ssl_model = torch.load(path)
+        updated_count = 0
+        unupdated_count = 0
+        for key in self.model.state_dict():
+            ssl_key = 'teacher.backbone.' + key
+            if ssl_key in ssl_model['model']:
+                # print(f'{ssl_key} in ssl model')
+                updated_count += 1
+                self.model.state_dict()[key].copy_(ssl_model['model'][ssl_key])
+            else:
+                print(f'{ssl_key} not in ssl model')
+                unupdated_count += 1
+        print(f'{updated_count=} {unupdated_count=}')
 
 
 class OBBModel(DetectionModel):
@@ -939,6 +956,7 @@ def parse_model(d, ch, verbose=True):  # model_dict, input_channels(3)
             PSA,
             SCDown,
             C2fCIB,
+            SSL,
         }:
             c1, c2 = ch[f], args[0]
             if c2 != nc:  # if c2 not equal to number of classes (i.e. for Classify() output)
