@@ -275,8 +275,13 @@ class SSL(nn.Module):
     def forward(self, x):
         """Performs a forward pass of the YOLO model on input image data."""
         # import ipdb; ipdb.set_trace()
-        patch_tokens = torch.reshape(x, (x.shape[0], x.shape[1], -1))
+        patch_tokens = x.clone()
+        patch_tokens = torch.reshape(patch_tokens, (patch_tokens.shape[0], patch_tokens.shape[1], -1))
         patch_tokens = torch.permute(patch_tokens, (0, 2, 1))
+        # patch_tokens.contiguous()
+
+        # patch_tokens = torch.permute(x, (0, 2, 3, 1))
+        # patch_tokens = torch.reshape(patch_tokens, (patch_tokens.shape[0], -1, patch_tokens.shape[3]))
         if isinstance(x, list):
             x = torch.cat(x, 1)
         cls_token = self.linear(self.drop(self.pool(self.conv(x)).flatten(1)))
