@@ -2,13 +2,18 @@
 import torch
 import os
 import copy
+from ultralytics import YOLO
 from ultralytics.nn.tasks import yaml_model_load, parse_model
 
 
 
 # %% 
 use_vit = False
+yolo_od_model = False
 if use_vit:
+    background_threshold = 0.3
+    smaller = True
+    whiten = False
     # settings for ViT
     feat_dim_dict = {'s': 384, 'b': 768, 'l': 1024, 'g': 1536}
     # model_size in ['s', 'b', 'l', 'g']
@@ -19,12 +24,19 @@ if use_vit:
     patch_size = backbone.patch_size # patchsize=14
 
 else:
+    background_threshold = 0.1
+    smaller = True
+    whiten = False
     # settings for YOLO
-    yolo_path = '/home/julian/work/dinov2/ultralytics/ultralytics/cfg/models/v8/yolov8n-ssl.yaml'
-    # ssl_path = '/mnt/data-home/julian/tiip/dinov2/imangenet-v0.1-0712/model_final.pt'
-    ssl_path = '/home/julian/yolov8n-scratch.pt'
+    yolo_path = '/home/julian/work/dinov2/ultralytics/ultralytics/cfg/models/v8/yolov8m-ssl.yaml'
+    # ssl_path = '/mnt/data-home/julian/tiip/dinov2/imangenet-v0.1-0712/model_final.pth'
+    # ssl_path = '/home/julian/yolov8n-scratch.pt'
+    # ssl_path = '/mnt/data-home/julian/tiip/dinov2/tiip-v0.1.1-0719/model_final.pth'
+    # ssl_path = '/mnt/data-home/julian/tiip/dinov2/tiip-yolov8m-v0.1.1-0720/model_final.pth'
+    ssl_path = '/mnt/data-home/julian/tiip/dinov2/tiip-yolov8m-v0.1.1-0722/model_0004049.pth'
+    # ssl_path = '/home/julian/work/dinov2/scratch-yolov8m-07222-last.pt'
     yolo_yaml = yaml_model_load(yolo_path) 
-    feat_dim = 256
+    feat_dim = 576
     image_size = 640
     patch_size = 32
 
@@ -51,23 +63,28 @@ else:
 
     print(f"updating backbone {ssl_path}")
     ssl_model = torch.load(ssl_path)
-    # ssl_state_dict = ssl_model['model']
-    # prefix = 'teacher.'
-    ssl_state_dict = ssl_model['model'].state_dict()
-    prefix = 'model.'
+    if yolo_od_model:
+        ssl_model = YOLO("yolov8m.yaml").load(ssl_path)
+        ssl_state_dict = ssl_model.model.state_dict()
+        prefix = 'model.'
+    else:
+        ssl_state_dict = ssl_model['model']
+        prefix = 'teacher.backbone.'
     update_ssl_backbone(yolo_model, ssl_state_dict, prefix=prefix)
     backbone = yolo_model
     backbone.cuda()
 
+# %%
 
-# %% cell 6
+
+# cell 6
 # this threshold depends on model size, and not sure the criterion is < or >
 # currently tested < for b, g, > for l, s
-background_threshold = 0.3 # smaller, fewer background
-smaller = False
+# smaller = True
 # folder_path = '/home/julian/work/Dino_V2/harryported_giffin_images'
-# folder_path = '/mnt/data-home/julian/ssl/pca-examples/tiip-s1'
-folder_path = '/mnt/data-home/julian/ssl/pca-examples/fashion'
+folder_path = '/mnt/data-home/julian/ssl/pca-examples/tiip-s1'
+# folder_path = '/mnt/data-home/julian/ssl/pca-examples/fashion'
+# folder_path = '/mnt/data-home/julian/ssl/pca-examples/imagenet'
 
 
 from PIL import Image
@@ -123,22 +140,20 @@ import matplotlib.pyplot as plt
 # sklearn expects 2d array for traning
 total_features = total_features.reshape(4 * patch_h * patch_w, feat_dim) 
 
-pca = PCA(n_components=3)
+pca = PCA(n_components=3, whiten=whiten)
 pca.fit(total_features)
 pca_features = pca.transform(total_features)
 print('*'*50)
 print(f'PCA features shape: {pca_features.shape}')
 
+
 # visualize PCA components for finding a proper threshold
 # 3 histograms for 3 components
-plt.subplot(2, 2, 1)
-plt.hist(pca_features[:, 0])
-plt.subplot(2, 2, 2)
-plt.hist(pca_features[:, 1])
-plt.subplot(2, 2, 3)
-plt.hist(pca_features[:, 2])
+fig, axis = plt.subplots(2, 2)
+fig.suptitle('PCA largest 3 components histograms', fontsize=12)
+for i in range(3):
+    axis[i//2, i%2].hist(pca_features[:, i])
 plt.show()
-plt.close()
 
 
 # cell 9
@@ -148,10 +163,10 @@ pca_features[:, 0] = (pca_features[:, 0] - pca_features[:, 0].min()) / \
                      (pca_features[:, 0].max() - pca_features[:, 0].min())
 #pca_features = sklearn.processing.minmax_scale(pca_features)
 
+fig, axis = plt.subplots(2, 2)
+fig.suptitle('PCA first component', fontsize=12)
 for i in range(4):
-    plt.subplot(2, 2, i+1)
-    plt.imshow(pca_features[i*patch_h*patch_w : (i+1)*patch_h*patch_w, 0].reshape(patch_h, patch_w))
-
+    axis[i//2, i%2].imshow(pca_features[i*patch_h*patch_w : (i+1)*patch_h*patch_w, 0].reshape(patch_h, patch_w))
 plt.show()
 
 
@@ -163,10 +178,10 @@ else:
     pca_features_bg = pca_features[:, 0] > background_threshold # from first histogram
 pca_features_fg = ~pca_features_bg
 
-# plot the pca_features_bg
+fig, axis = plt.subplots(2, 2)
+fig.suptitle('background filtered by PCA first component', fontsize=12)
 for i in range(4):
-    plt.subplot(2, 2, i+1)
-    plt.imshow(pca_features_bg[i * patch_h * patch_w: (i+1) * patch_h * patch_w].reshape(patch_h, patch_w))
+    axis[i//2, i%2].imshow(pca_features_bg[i*patch_h*patch_w : (i+1)*patch_h*patch_w].reshape(patch_h, patch_w))
 plt.show()
 
 
@@ -188,19 +203,15 @@ pca_features_rgb[pca_features_fg] = pca_features_left
 
 # reshaping to numpy image format
 pca_features_rgb = pca_features_rgb.reshape(4, patch_h, patch_w, 3)
-for i in range(4):
-    plt.subplot(2, 2, i+1)
-    plt.imshow(pca_features_rgb[i])
 
-plt.show()
-
-
-# cell 13
-for i,img_path in enumerate(os.listdir(folder_path)):
+fig, axis = plt.subplots(2, 4)
+fig.suptitle('vitb-tiip', fontsize=12)
+for i, img_path in enumerate(os.listdir(folder_path)):
+    axis[0, i].imshow(pca_features_rgb[i])
     img_path = os.path.join(folder_path, img_path)
     img = Image.open(img_path).convert('RGB').resize((image_size, image_size))
-    plt.subplot(2, 2, i+1)
-    plt.imshow(img)
-
+    axis[1, i].imshow(img)
 plt.show()
+
+
 # %%
