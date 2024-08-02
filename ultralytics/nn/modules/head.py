@@ -274,7 +274,49 @@ class SSL(nn.Module):
 
     def forward(self, x):
         """Performs a forward pass of the YOLO model on input image data."""
+        patch_tokens = x.clone()
+        patch_tokens = torch.reshape(patch_tokens, (patch_tokens.shape[0], patch_tokens.shape[1], -1))
+        patch_tokens = torch.permute(patch_tokens, (0, 2, 1))
+        # patch_tokens.contiguous()
+
+        # patch_tokens = torch.permute(x, (0, 2, 3, 1))
+        # patch_tokens = torch.reshape(patch_tokens, (patch_tokens.shape[0], -1, patch_tokens.shape[3]))
+        if isinstance(x, list):
+            x = torch.cat(x, 1)
+        cls_token = self.linear(self.drop(self.pool(self.conv(x)).flatten(1)))
         # import ipdb; ipdb.set_trace()
+        return {
+            'x_norm_patchtokens': patch_tokens,
+            'x_norm_clstoken': cls_token,
+        }
+        # return x if self.training else x.softmax(1)
+
+
+class Dummy(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        return x
+
+
+class LinearDetect(nn.Module):
+    """YOLOv8 classification head, i.e. x(b,c1,20,20) to x(b,c2)."""
+
+    def __init__(self, c1, c2, k=1, s=1, p=None, g=1):
+        """Initializes YOLOv8 classification head with specified input and output channels, kernel size, stride,
+        padding, and groups.
+        """
+        super().__init__()
+        c_ = 1280  # efficientnet_b0 size
+        self.conv = Conv(c1, c_, k, s, p, g)
+        self.pool = nn.AdaptiveAvgPool2d(1)  # to x(b,c_,1,1)
+        self.drop = nn.Dropout(p=0.0, inplace=True)
+        self.linear = nn.Linear(c_, c2)  # to x(b,c2)
+
+    def forward(self, x):
+        """Performs a forward pass of the YOLO model on input image data."""
+        import ipdb; ipdb.set_trace()
         patch_tokens = x.clone()
         patch_tokens = torch.reshape(patch_tokens, (patch_tokens.shape[0], patch_tokens.shape[1], -1))
         patch_tokens = torch.permute(patch_tokens, (0, 2, 1))

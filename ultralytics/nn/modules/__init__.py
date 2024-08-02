@@ -69,7 +69,7 @@ from .conv import (
     RepConv,
     SpatialAttention,
 )
-from .head import OBB, Classify, Detect, Pose, RTDETRDecoder, Segment, WorldDetect, v10Detect, SSL
+from .head import OBB, Classify, Detect, Pose, RTDETRDecoder, Segment, WorldDetect, v10Detect, SSL, LinearDetect, Dummy
 from .transformer import (
     AIFI,
     MLP,
@@ -141,6 +141,8 @@ __all__ = (
     "ADown",
     "SPPELAN",
     "SSL",
+    "Dummy",
+    "LinearDetect",
     "CBFuse",
     "CBLinear",
     "AConv",
