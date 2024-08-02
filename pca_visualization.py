@@ -2,8 +2,10 @@
 import torch
 import os
 import copy
+import numpy as np
 from ultralytics import YOLO
-from ultralytics.nn.tasks import yaml_model_load, parse_model
+from ultralytics.nn.tasks import yaml_model_load, parse_model, DetectionModel
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
 
 
@@ -12,7 +14,7 @@ use_vit = False
 yolo_od_model = False
 show_all_diagrams = True
 if use_vit:
-    background_threshold = 0
+    background_threshold = -50
     smaller = True
     whiten = False
     # settings for ViT
@@ -27,25 +29,28 @@ if use_vit:
 else:
     background_threshold = 0
     smaller = True
-    whiten = True
+    whiten = False
     # settings for YOLO
     yolo_path = '/home/julian/work/dinov2/ultralytics/ultralytics/cfg/models/v8/yolov8m-ssl.yaml'
+    # yolo_path = '/home/julian/work/dinov2/ultralytics/ultralytics/cfg/models/v8/yolov8m-neck.yaml'
     # ssl_path = '/mnt/data-home/julian/tiip/dinov2/imangenet-v0.1-0712/model_final.pth'
     # ssl_path = '/home/julian/yolov8n-scratch.pt'
     # ssl_path = '/home/julian/work/dinov2/yolov8n.pt'
-    # ssl_path = '/mnt/data-home/julian/tiip/dinov2/tiip-v0.1.1-0719/model_final.pth'
+    # ssl_path = '/home/julian/work/dinov2/yolov8m.pt'
     # ssl_path = '/mnt/data-home/julian/tiip/dinov2/tiip-yolov8m-v0.1.1-0720/model_final.pth'
     # ssl_path = '/mnt/data-home/julian/tiip/dinov2/tiip-yolov8m-v0.1.1-0722/model_final.pth'
     # ssl_path = '/mnt/data-home/julian/tiip/dinov2/tiip-yolov8m-v0.1.2-0722-2/model_0008699.pth'
     # ssl_path = '/mnt/data-home/julian/tiip/dinov2/tiip-yolov8m-v0.1.2-0722-2/model_final.pth'
     # ssl_path = '/mnt/data-home/julian/tiip/dinov2/resize_640/model_0005549.pth'
-    ssl_path = '/mnt/data-home/julian/tiip/dinov2/resize_640_global_512_local_224/model_0001349.pth'
-    # ssl_path = '/mnt/data-home/julian/tiip/dinov2/resize_640_global_512_local_224/model_final.pth'
+    # ssl_path = '/mnt/data-home/julian/tiip/dinov2/resize_640_global_512_local_224/model_0001349.pth'
+    ssl_path = '/mnt/data-home/julian/tiip/dinov2/resize_640_global_512_local_224_0726/model_final.pth'
     # ssl_path = '/home/julian/work/dinov2/scratch-yolov8m-07222-last.pt'
     yolo_yaml = yaml_model_load(yolo_path) 
-    feat_dim = 576
+    feat_dim, patch_size, idx = 576, 32, 2
+    # feat_dim, patch_size, idx = 384, 16, 1
+    # feat_dim, patch_size, idx = 192, 8, 0
+    idx = 0
     image_size = 640
-    patch_size = 32
 
     def update_ssl_backbone(yolo_model, ssl_state_dict, prefix):
         print(f"updating backbone {ssl_path}")
@@ -67,22 +72,24 @@ else:
     # model, save = parse_model(copy.deepcopy(yaml), ch=ch, verbose=True)  # model, savelist
     yolo_model, _ = parse_model(copy.deepcopy(yolo_yaml), ch=ch, verbose=True)
     ssl_model = torch.load(ssl_path)
+    feature_key = 'x_norm_patchtokens'
 
-
-    ssl_model = torch.load(ssl_path)
     if yolo_od_model:
+        yolo_model = DetectionModel(cfg=yolo_path).cuda()
         ssl_model = YOLO("yolov8m.yaml").load(ssl_path)
         ssl_state_dict = ssl_model.model.state_dict()
         prefix = 'model.'
+        update_ssl_backbone(yolo_model.model, ssl_state_dict, prefix=prefix)
+        feature_key = idx
     else:
         ssl_state_dict = ssl_model['model']
         prefix = 'teacher.backbone.'
-    update_ssl_backbone(yolo_model, ssl_state_dict, prefix=prefix)
+        update_ssl_backbone(yolo_model, ssl_state_dict, prefix=prefix)
     backbone = yolo_model
     backbone.cuda()
 
 
-
+# %%
 #  cell 6
 # this threshold depends on model size, and not sure the criterion is < or >
 # currently tested < for b, g, > for l, s
@@ -129,7 +136,7 @@ with torch.no_grad():
             features_dict = backbone.forward_features(img_t.unsqueeze(0).cuda())
         else:
             features_dict = backbone(img_t.unsqueeze(0).cuda())
-        features = features_dict['x_norm_patchtokens']
+        features = features_dict[feature_key]
         total_features.append(features)
 
 
@@ -184,6 +191,7 @@ if smaller:
     pca_features_bg = pca_features[:, 0] < background_threshold # from first histogram
 else:
     pca_features_bg = pca_features[:, 0] > background_threshold # from first histogram
+
 pca_features_fg = ~pca_features_bg
 
 # if show_all_diagrams:
