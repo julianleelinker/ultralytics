@@ -384,13 +384,13 @@ class DetectionModel(BaseModel):
         """Initialize the loss criterion for the DetectionModel."""
         return E2EDetectLoss(self) if getattr(self, "end2end", False) else v8DetectionLoss(self)
 
-    def update_backbone(self, path):
+    def update_backbone(self, path, prefix=''):
         print(f"update_backbone {path}")
         ssl_model = torch.load(path)
         updated_count = 0
         unupdated_count = 0
         for key in self.model.state_dict():
-            ssl_key = 'teacher.backbone.' + key
+            ssl_key = prefix + key
             if ssl_key in ssl_model['model']:
                 # print(f'{ssl_key} in ssl model')
                 updated_count += 1
