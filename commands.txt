@@ -1,0 +1,2 @@
+
+yolo val model=/home/julian/work/ultralytics/runs/detect/tiip-yolov8m-nocls-0906-all/weights/best.pt data=/home/julian/work/dinov2/ultralytics/ultralytics/cfg/datasets/tiip-scratch_yolo-s1-s22.yaml imgsz=640 batch=32 device=0 > tmp.txt
