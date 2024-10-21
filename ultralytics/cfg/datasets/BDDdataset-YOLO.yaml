@@ -4,13 +4,13 @@ val: ./images/val/ # val image folder
 test: ./images/val/ # test image folder
 
 names:
-  0: traffic sign
-  1: traffic light
+  0: bike
+  1: bus
   2: car
-  3: rider
-  4: motor
-  5: person
-  6: bus
-  7: truck
-  8: bike
-  9: train
+  3: motor
+  4: person
+  5: rider
+  6: traffic light
+  7: traffic sign
+  8: train
+  9: truck

@@ -1,0 +1,7 @@
+names:
+  0: TYPE_VEHICLE
+  1: TYPE_PEDESTRIAN
+  2: TYPE_CYCLIST
+path: /mnt/data-home/datasets/waymo-YOLO
+train: ./images/train/
+val: ./images/val/
