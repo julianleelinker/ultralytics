@@ -1,0 +1,22 @@
+# path: /mnt/data-home/datasets/mobility-YOLO # m234
+path: /mnt/data-home/julian/datasets/mobility-YOLO-s8-s12-s24/ # honhai
+train: ./images/train/
+val: ./images/val/
+
+names:
+  0: BICYCLE
+  1: BUS
+  2: CAR
+  3: CLEAN_TRAFFIC_SIGN
+  4: CONE
+  5: DIRTY_TRAFFIC_SIGN
+  6: JERSEY_BARRIER
+  7: MOTORCYCLE
+  8: PEDESTRIAN
+  9: RIDER
+  10: ROAD_CRACKS
+  11: ROAD_PATCH
+  12: ROAD_POTHOLES
+  13: TRAFFIC_LIGHT
+  14: TRUCK
+  15: UNCLEAR_ROAD_MARKING
